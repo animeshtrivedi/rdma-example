@@ -235,9 +235,12 @@ static int client_connect_to_server()
 	return 0;
 }
 
-/* Send client side src buffer metadata to the server. This metadata on 
- * the server side is unused. This is shown for the illustration purpose. */
-static int client_send_metadata_to_server() 
+/* Exchange buffer metadata with the server. The client sends its, and then receives
+ * from the server. The client-side metadata on the server is _not_ used because
+ * this program is client driven. But it shown here how to do it for the illustration
+ * purposes
+ */
+static int client_xchange_metadata_with_server()
 {
 	struct ibv_wc wc[2];
 	int ret = -1;
@@ -526,7 +529,7 @@ int main(int argc, char **argv) {
 		rdma_error("Failed to setup client connection , ret = %d \n", ret);
 		return ret;
 	}
-	ret = client_send_metadata_to_server();
+	ret = client_xchange_metadata_with_server();
 	if (ret) {
 		rdma_error("Failed to setup client connection , ret = %d \n", ret);
 		return ret;
