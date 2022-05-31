@@ -34,7 +34,8 @@ static int check_src_dst()
 }
 
 /* This function prepares client side connection resources for an RDMA connection */
-static int client_prepare_connection(struct sockaddr_in *s_addr)
+static int client_prepare_connection(struct sockaddr_in *s_addr,
+				     struct sockaddr_in *c_addr)
 {
 	struct rdma_cm_event *cm_event = NULL;
 	int ret = -1;
@@ -58,7 +59,8 @@ static int client_prepare_connection(struct sockaddr_in *s_addr)
 	/* Resolve destination and optional source addresses from IP addresses  to
 	 * an RDMA address.  If successful, the specified rdma_cm_id will be bound
 	 * to a local device. */
-	ret = rdma_resolve_addr(cm_client_id, NULL, (struct sockaddr*) s_addr, 2000);
+	ret = rdma_resolve_addr(cm_client_id, (struct sockaddr*) c_addr,
+				(struct sockaddr*) s_addr, 2000);
 	if (ret) {
 		rdma_error("Failed to resolve address, errno: %d \n", -errno);
 		return -errno;
@@ -455,13 +457,14 @@ static int client_disconnect_and_clean()
 
 void usage() {
 	printf("Usage:\n");
-	printf("rdma_client: [-a <server_addr>] [-p <server_port>] -s string (required)\n");
+	printf("rdma_client: [-f <client_addr>] [-a <server_addr>] [-p <server_port>] -s string (required)\n");
 	printf("(default IP is 127.0.0.1 and port is %d)\n", DEFAULT_RDMA_PORT);
 	exit(1);
 }
 
 int main(int argc, char **argv) {
 	struct sockaddr_in server_sockaddr;
+	struct sockaddr_in *client_sockaddr;
 	int ret, option;
 	bzero(&server_sockaddr, sizeof server_sockaddr);
 	server_sockaddr.sin_family = AF_INET;
@@ -469,7 +472,7 @@ int main(int argc, char **argv) {
 	/* buffers are NULL */
 	src = dst = NULL; 
 	/* Parse Command Line Arguments */
-	while ((option = getopt(argc, argv, "s:a:p:")) != -1) {
+	while ((option = getopt(argc, argv, "s:f:a:p:")) != -1) {
 		switch (option) {
 			case 's':
 				printf("Passed string is : %s , with count %u \n", 
@@ -487,6 +490,20 @@ int main(int argc, char **argv) {
 					rdma_error("Failed to allocate destination memory, -ENOMEM\n");
 					free(src);
 					return -ENOMEM;
+				}
+				break;
+			case 'f':
+				client_sockaddr = calloc(sizeof(struct sockaddr_in), 1);
+				if (!client_sockaddr) {
+					rdma_error("Failed to allocate client address, -ENOMEM\n");
+					free(src);
+					return -ENOMEM;
+				}
+				ret = get_addr(optarg, (struct sockaddr*) client_sockaddr);
+				if (ret) {
+					rdma_error("Invalid IP \n");
+					free(client_sockaddr);
+					return ret;
 				}
 				break;
 			case 'a':
@@ -514,7 +531,7 @@ int main(int argc, char **argv) {
 		printf("Please provide a string to copy \n");
 		usage();
        	}
-	ret = client_prepare_connection(&server_sockaddr);
+	ret = client_prepare_connection(&server_sockaddr, client_sockaddr);
 	if (ret) { 
 		rdma_error("Failed to setup client connection , ret = %d \n", ret);
 		return ret;
